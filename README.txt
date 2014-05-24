@@ -23,7 +23,7 @@ Atari 8-pin Keyboard Connector     Arduino
 4 5V                               5V
 5 RX                               RX1 (0)
 6 TX                               TX1 (1)
-7 Reset                            4 (can be changed in code)
+7 Reset                            2 (can be changed in code)
 8 Not used
 
 Copyright Kevin Peat 2013

@@ -8,3 +8,7 @@ My changes and additions are licensed public domain
 
 Copyright Kevin Peat 2013
 kevin 'at' kevinpeat.com
+
+Additional joystick code:
+Urban Jonsson
+ube@alienautopsy.net

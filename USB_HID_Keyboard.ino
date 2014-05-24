@@ -1,23 +1,26 @@
 /* 
-* -------------------------------------------------------------------------
-* Interface Atari ST Keyboard to USB HID Keyboard
-* -------------------------------------------------------------------------
-* Initial idea and some original code provided by user 'joska' of 
-* http://www.atari-forum.com - license unknown
-* -------------------------------------------------------------------------
-* Copyright Kevin Peat 2013
-* kevin@kevinpeat.com
-* My changes and additions are licensed public domain
-* -------------------------------------------------------------------------
-* Developed for use with an Arduino Leonardo as it is able to act directly 
-* as a USB keyboard controller so doesn't require the Arduino firmware to 
-* be modified as some of the other Arduinos (eg. Uno) would do
-* -------------------------------------------------------------------------
-*/
-//#define DEBUG
+ * -------------------------------------------------------------------------
+ * Interface Atari ST Keyboard to USB HID Keyboard
+ * -------------------------------------------------------------------------
+ * Initial idea and some original code provided by user 'joska' of 
+ * http://www.atari-forum.com - license unknown
+ * -------------------------------------------------------------------------
+ * Copyright Kevin Peat 2013
+ * kevin@kevinpeat.com
+ * My changes and additions are licensed public domain
+ * -------------------------------------------------------------------------
+ * Developed for use with an Arduino Leonardo as it is able to act directly 
+ * as a USB keyboard controller so doesn't require the Arduino firmware to 
+ * be modified as some of the other Arduinos (eg. Uno) would do
+ * -------------------------------------------------------------------------
+ * Joystick code: Urban Jonsson
+ * ube@alienautopsy.net
+ * 
+ */
+#define DEBUG
 
 // ST keyboard reset pin
-const int ST_KB_RESET = 4;
+const int ST_KB_RESET = 2;
 
 // Atari modifier key codes
 const uint8_t ST_LEFT_CTRL = 0x1D;
@@ -190,11 +193,29 @@ uint8_t scanCodes[] =
   0xE0  // NEnter
 };
 
+// Joystick directions
+const uint8_t JOY_1_N        = 0x01;
+const uint8_t JOY_1_S        = 0x02;
+const uint8_t JOY_1_E        = 0x04;
+const uint8_t JOY_1_NW       = 0x05;
+const uint8_t JOY_1_SW       = 0x06;
+const uint8_t JOY_1_W        = 0x08;
+const uint8_t JOY_1_NE       = 0x09;
+const uint8_t JOY_1_SE       = 0x0A;
+const uint8_t JOY_1_ACTION   = 0xFF;
+const uint8_t JOY_1_LMB_DOWN = 0xF9;
+const uint8_t JOY_1_LMB_UP   = 0xF8;
+
+uint8_t joystate = 0;
+
+JoyState_t joySt;
+
+
 void setup(void)
 {
   // Initialize keyboard:
   Keyboard.begin();
-  
+
   // Open serial port from Atari keyboard
   Serial1.begin(7812);
 
@@ -202,21 +223,32 @@ void setup(void)
   // Open serial port to PC
   Serial.begin(9600);
 #endif
-  
+
   // Reset ST keyboard
   delay(200);
   reset_st_keyboard();
   delay(200);
 
   // Empty serial buffer before starting
+  Serial1.print(0x14);
+  joySt.buttons = 0;
+  reset_joystick();
+
   while(Serial1.available() > 0) Serial1.read();
 }
 
 void loop()
 {
   // Process incoming Atari keypresses
-  if (Serial1.available() > 0) process_keypress(Serial1.read());
+  Joystick.setState(&joySt);
+  /*  if ( ! joystate ) {
+   reset_joystick(); 
+   } */
 
+  if (Serial1.available() > 0) {
+    process_keypress(Serial1.read());
+
+  }
   // Handle keyboard auto-repeat
   auto_repeat();
 }
@@ -234,11 +266,93 @@ void reset_st_keyboard(void)
   digitalWrite(ST_KB_RESET, HIGH);
 }
 
+//void process_joystick()
+void process_joystick(void)
+
+{
+  int key = Serial1.read();
+  Serial.print("Read: ");
+  Serial.println(key);
+}
+
+
+void reset_joystick() {
+  joySt.xAxis = 128;
+  joySt.yAxis = 128;
+  joySt.zAxis = 128;
+  joySt.xRotAxis = 128;
+  joySt.yRotAxis = 128;
+  joySt.zRotAxis = 128;
+  joySt.throttle = 128;
+  joySt.rudder = 128;
+  joySt.hatSw1 = 255;
+  //	joySt.hatSw2 = 255;
+  //  joySt.buttons = 0;
+}
+
 // Process each keypress
 void process_keypress(uint8_t key)
 {
+
+  // Joystick in port 1
+  
+  switch (key) {
+  case JOY_1_ACTION:
+    joystate = joystate ^ B100;
+    joystate = joystate ^ B1;
+    break;
+  case JOY_1_LMB_DOWN :
+    joystate |= (1<< 1);
+    joySt.buttons = 1;
+    break;
+  case JOY_1_LMB_UP:
+    joystate &= ~(1 << 1);
+    joySt.buttons = 0;
+    break;
+
+  }
+
+  if ( ((joystate >> 2) & 1) || ((joystate >> 0 & 1)) ) {
+    joystate = (joystate >> 2) & 1;
+    if ( key ) {
+      switch(key) {
+      case JOY_1_N:
+        joySt.yAxis=0;
+        break; 
+      case JOY_1_S:
+        joySt.yAxis=255;
+        break; 
+      case JOY_1_E:
+        joySt.xAxis=0;
+        break; 
+      case JOY_1_W:
+        joySt.xAxis=255;
+        break; 
+      case JOY_1_NE:
+        joySt.yAxis=0;
+        joySt.xAxis=255;
+        break; 
+      case JOY_1_SE:
+        joySt.yAxis=255;
+        joySt.xAxis=255;
+        break; 
+      case JOY_1_NW:
+        joySt.yAxis=0;
+        joySt.xAxis=0;
+        break; 
+      case JOY_1_SW:
+        joySt.yAxis=255;
+        joySt.xAxis=0;
+        break; 
+      }          
+
+    } 
+    else {
+      reset_joystick(); 
+    }
+  } 
   // Keypress
-  if (((key & 0x7f) > 0) && ((key & 0x7f) < 0x73))
+  else if (((key & 0x7f) > 0) && ((key & 0x7f) < 0x73))
   {
     // Break codes (other than modifiers) do not need to be sent 
     // to the PC as the Leonardo keyboard interface handles that
@@ -260,22 +374,22 @@ void process_keypress(uint8_t key)
 // Convert from ST scancode to PC scancode
 void convert_scancode(uint8_t key)
 {
-  
+
   uint8_t break_code = key & 0x80;
   uint8_t pc_code = scanCodes[key & 0x7f];
   uint8_t escaped = (pc_code == 0xe0 ? true:false);
-  
+
 #ifdef DEBUG
-    Serial.print("Atari scancode: ");
-    Serial.println(key, DEC);
-    Serial.print("PC scancode: ");
-    Serial.println(pc_code, DEC);
-    Serial.print("Break code: ");
-    Serial.println(break_code, DEC);
-    Serial.print("Escaped: ");
-    Serial.println(escaped, DEC);
+  Serial.print("Atari scancode: ");
+  Serial.println(key, DEC);
+  Serial.print("PC scancode: ");
+  Serial.println(pc_code, DEC);
+  Serial.print("Break code: ");
+  Serial.println(break_code, DEC);
+  Serial.print("Escaped: ");
+  Serial.println(escaped, DEC);
 #endif
-  
+
   // Handle modifier key presses
   if (process_modifier(key)) return;
 
@@ -284,39 +398,39 @@ void convert_scancode(uint8_t key)
   {
     switch (key & 0x7f)
     {
-      case 0x48: // Up arrow
-        send_escaped_key(ARD_UP_ARROW);
-        break;
-      case 0x4b: // Left arrow
-        send_escaped_key(ARD_LEFT_ARROW);
-        break;
-      case 0x4d: // Right arrow
-        send_escaped_key(ARD_RIGHT_ARROW);
-        break;
-      case 0x50: // Down arrow
-        send_escaped_key(ARD_DOWN_ARROW);
-        break;
-      case 0x52: // Insert
-        send_escaped_key(ARD_INSERT);
-        break;
-      case 0x53: // Delete
-        send_escaped_key(ARD_DELETE);
-        break;
-      case 0x47: // Clr/Home
-        send_escaped_key(ARD_HOME);
-        break;
-      case 0x65: // Num /
-        send_escaped_key(0x2F);
-        break;
-      case 0x72: // Num Enter
-        send_escaped_key(ARD_RETURN);
-        break;
-      case 0x2b: // Tilde
-        send_escaped_key(0x23);
-        break;
-      case 0x62: // Help
-        send_escaped_key(ARD_F1);
-        break;
+    case 0x48: // Up arrow
+      send_escaped_key(ARD_UP_ARROW);
+      break;
+    case 0x4b: // Left arrow
+      send_escaped_key(ARD_LEFT_ARROW);
+      break;
+    case 0x4d: // Right arrow
+      send_escaped_key(ARD_RIGHT_ARROW);
+      break;
+    case 0x50: // Down arrow
+      send_escaped_key(ARD_DOWN_ARROW);
+      break;
+    case 0x52: // Insert
+      send_escaped_key(ARD_INSERT);
+      break;
+    case 0x53: // Delete
+      send_escaped_key(ARD_DELETE);
+      break;
+    case 0x47: // Clr/Home
+      send_escaped_key(ARD_HOME);
+      break;
+    case 0x65: // Num /
+      send_escaped_key(0x2F);
+      break;
+    case 0x72: // Num Enter
+      send_escaped_key(ARD_RETURN);
+      break;
+    case 0x2b: // Tilde
+      send_escaped_key(0x23);
+      break;
+    case 0x62: // Help
+      send_escaped_key(ARD_F1);
+      break;
     }
   }
   else
@@ -338,44 +452,44 @@ boolean process_modifier(uint8_t key)
 {
   // Modifier key press  
   switch (key)
-    {
-      case ST_LEFT_CTRL:
-        Keyboard.press(ARD_LEFT_CTRL);
-        return true;
-      case ST_LEFT_SHIFT:
-        Keyboard.press(ARD_LEFT_SHIFT);
-        return true;
-      case ST_LEFT_ALT:
-        Keyboard.press(ARD_LEFT_ALT);
-        return true;
-      case ST_RIGHT_SHIFT:
-        Keyboard.press(ARD_RIGHT_SHIFT);
-        return true;        
-      case ST_CAPS_LOCK:
-        Keyboard.press(ARD_CAPS_LOCK);
-        return true;
-    }
+  {
+  case ST_LEFT_CTRL:
+    Keyboard.press(ARD_LEFT_CTRL);
+    return true;
+  case ST_LEFT_SHIFT:
+    Keyboard.press(ARD_LEFT_SHIFT);
+    return true;
+  case ST_LEFT_ALT:
+    Keyboard.press(ARD_LEFT_ALT);
+    return true;
+  case ST_RIGHT_SHIFT:
+    Keyboard.press(ARD_RIGHT_SHIFT);
+    return true;        
+  case ST_CAPS_LOCK:
+    Keyboard.press(ARD_CAPS_LOCK);
+    return true;
+  }
 
   // Modifier key release
   switch (key & 0x7f)
-    {
-      case ST_LEFT_CTRL:
-        Keyboard.release(ARD_LEFT_CTRL);
-        return true;
-      case ST_LEFT_SHIFT:
-        Keyboard.release(ARD_LEFT_SHIFT);
-        return true;
-      case ST_LEFT_ALT:
-        Keyboard.release(ARD_LEFT_ALT);
-        return true;
-      case ST_RIGHT_SHIFT:
-        Keyboard.release(ARD_RIGHT_SHIFT);
-        return true;        
-      case ST_CAPS_LOCK:
-        Keyboard.release(ARD_CAPS_LOCK);
-        return true;
-    }
-  
+  {
+  case ST_LEFT_CTRL:
+    Keyboard.release(ARD_LEFT_CTRL);
+    return true;
+  case ST_LEFT_SHIFT:
+    Keyboard.release(ARD_LEFT_SHIFT);
+    return true;
+  case ST_LEFT_ALT:
+    Keyboard.release(ARD_LEFT_ALT);
+    return true;
+  case ST_RIGHT_SHIFT:
+    Keyboard.release(ARD_RIGHT_SHIFT);
+    return true;        
+  case ST_CAPS_LOCK:
+    Keyboard.release(ARD_CAPS_LOCK);
+    return true;
+  }
+
   return false;  
 }
 
@@ -384,18 +498,18 @@ void auto_repeat(void)
 {
   static unsigned long last_repeat;
   static byte key_repeating;  // True if key being repeated
-  
+
   // Don't want to repeat modifiers  
   switch (last_make)
   {
-    case ST_LEFT_CTRL:
-    case ST_LEFT_SHIFT:
-    case ST_RIGHT_SHIFT:
-    case ST_LEFT_ALT:
-    case ST_CAPS_LOCK:
-    case 0x00: // No key held down
-      key_repeating = false;
-      return;
+  case ST_LEFT_CTRL:
+  case ST_LEFT_SHIFT:
+  case ST_RIGHT_SHIFT:
+  case ST_LEFT_ALT:
+  case ST_CAPS_LOCK:
+  case 0x00: // No key held down
+    key_repeating = false;
+    return;
   }
 
   // Delay to first repeat  
@@ -413,4 +527,13 @@ void auto_repeat(void)
     convert_scancode(last_make);
   }  
 }
+
+
+
+
+
+
+
+
+
 
