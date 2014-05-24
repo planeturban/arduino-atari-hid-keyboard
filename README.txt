@@ -13,6 +13,13 @@ Developed for use with an Arduino Leonardo as it is able to act directly
 as a USB keyboard controller so doesn't require the Arduino firmware to 
 be modified as some of the other Arduinos (eg. Uno) would do.
 
+Using the joystick:
+
+From http://www.imaginaryindustries.com/blog/?p=80 :
+Replace USBAPI.h and HID.cpp in {arduino executable dir}\hardware\arduino\cores\arduino\ with included files.
+
+(Note: Joystick only works in port 1)
+
 The Atari keyboard connector is wired to the Arduino as follows:
 
 Atari 8-pin Keyboard Connector     Arduino
@@ -28,3 +35,4 @@ Atari 8-pin Keyboard Connector     Arduino
 
 Copyright Kevin Peat 2013
 kevin 'at' kevinpeat.com
+
