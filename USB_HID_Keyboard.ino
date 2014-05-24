@@ -266,16 +266,6 @@ void reset_st_keyboard(void)
   digitalWrite(ST_KB_RESET, HIGH);
 }
 
-//void process_joystick()
-void process_joystick(void)
-
-{
-  int key = Serial1.read();
-  Serial.print("Read: ");
-  Serial.println(key);
-}
-
-
 void reset_joystick() {
   joySt.xAxis = 128;
   joySt.yAxis = 128;
