@@ -283,9 +283,6 @@ void reset_joystick() {
 // Process each keypress
 void process_keypress(uint8_t key)
 {
-
-  // Joystick in port 1
-  
   switch (key) {
   case JOY_1_ACTION:
     joystate = joystate ^ B100;
@@ -340,9 +337,7 @@ void process_keypress(uint8_t key)
     else {
       reset_joystick(); 
     }
-  } 
-  // Keypress
-  else if (((key & 0x7f) > 0) && ((key & 0x7f) < 0x73))
+  }  else if (((key & 0x7f) > 0) && ((key & 0x7f) < 0x73))
   {
     // Break codes (other than modifiers) do not need to be sent 
     // to the PC as the Leonardo keyboard interface handles that
@@ -517,6 +512,7 @@ void auto_repeat(void)
     convert_scancode(last_make);
   }  
 }
+
 
 
 
