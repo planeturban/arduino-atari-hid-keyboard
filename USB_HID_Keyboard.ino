@@ -1,6 +1,4 @@
-/* 
- * -------------------------------------------------------------------------
- * Interface Atari ST Keyboard to USB HID Keyboard
+nterface Atari ST Keyboard to USB HID Keyboard
  * -------------------------------------------------------------------------
  * Initial idea and some original code provided by user 'joska' of 
  * http://www.atari-forum.com - license unknown
@@ -13,11 +11,77 @@
  * as a USB keyboard controller so doesn't require the Arduino firmware to 
  * be modified as some of the other Arduinos (eg. Uno) would do
  * -------------------------------------------------------------------------
- * Joystick code: Urban Jonsson
- * ube@alienautopsy.net
- * 
+ *
+ * Additional Joystick 1 code by Urban Jonsson.
+ *
+ * Merge the following into HIB.cpp 
+ * from http://www.raspberrypi.org/forums/viewtopic.php?f=40&t=10990&start=25 
+ *
+ 
+     //   Commodore / Atari Joystick 1
+
+       0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
+       0x09, 0x05,                    // USAGE (Game Pad)
+       0xa1, 0x01,                    // COLLECTION (Application)
+       0x85, 0x03,                    //   REPORT_ID (3)
+       0x09, 0x01,                    //   USAGE (Pointer)
+       0xa1, 0x00,                    //   COLLECTION (Physical)
+       0x09, 0x30,                    //     USAGE (X)
+       0x09, 0x31,                    //     USAGE (Y)
+       0x15, 0xff,                    //     LOGICAL_MINIMUM (-1)
+       0x25, 0x01,                    //     LOGICAL_MAXIMUM (1)
+       0x95, 0x02,                    //     REPORT_COUNT (2)
+       0x75, 0x02,                    //     REPORT_SIZE (2) ; two bits to represent each axis
+       0x81, 0x02,                    //     INPUT (Data,Var,Abs)
+       0xc0,                          //   END_COLLECTION
+       0x05, 0x09,                    //   USAGE_PAGE (Button)
+       0x19, 0x01,                    //   USAGE_MINIMUM (Button 1)
+       0x29, 0x01,                    //   USAGE_MAXIMUM (Button 1)
+       0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
+       0x25, 0x01,                    //   LOGICAL_MAXIMUM (1)
+       0x95, 0x01,                    //   REPORT_COUNT (1) ; 1 button
+       0x75, 0x01,                    //   REPORT_SIZE (1)
+       0x81, 0x02,                    //   INPUT (Data,Var,Abs)
+       0x95, 0x03,                    //   REPORT_COUNT (3) ; to pad out the bits into a number divisible by 8
+       0x81, 0x03,                    //   INPUT (Const,Var,Abs)
+       0xc0,                          // END_COLLECTION
+     
+    //   Commodore / Atari Joystick 2
+
+       0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
+       0x09, 0x05,                    // USAGE (Game Pad)
+       0xa1, 0x01,                    // COLLECTION (Application)
+       0x85, 0x04,                    //   REPORT_ID (4)
+        0xa1, 0x00,                    //   COLLECTION (Physical)   
+       0x95, 0x01,                    //   REPORT_COUNT (1) ; to pad out the bits into a number divisible by 8
+       0x81, 0x03,                    //   INPUT (Const,Var,Abs)   
+       0x05, 0x09,                    //   USAGE_PAGE (Button)
+       0x19, 0x01,                    //   USAGE_MINIMUM (Button 1)
+       0x29, 0x01,                    //   USAGE_MAXIMUM (Button 3)
+       0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
+       0x25, 0x01,                    //   LOGICAL_MAXIMUM (1)
+       0x95, 0x01,                    //   REPORT_COUNT (1) ; 1 button
+       0x75, 0x01,                    //   REPORT_SIZE (1)
+       0x81, 0x02,                    //   INPUT (Data,Var,Abs)
+        0x95, 0x02,                    //   REPORT_COUNT (2) ; to pad out the bits into a number divisible by 8
+       0x81, 0x03,                    //   INPUT (Const,Var,Abs)
+        0x05, 0x01,                    //     USAGE_PAGE (Generic Desktop)
+       0x09, 0x30,                    //     USAGE (X)
+       0x09, 0x31,                    //     USAGE (Y)
+       0x15, 0xff,                    //     LOGICAL_MINIMUM (-1)
+       0x25, 0x01,                    //     LOGICAL_MAXIMUM (1)
+       0x95, 0x02,                    //     REPORT_COUNT (2)
+       0x75, 0x02,                    //     REPORT_SIZE (2) ; two bits to represent each axis
+       0x81, 0x02,                    //     INPUT (Data,Var,Abs)
+       0xc0,                          //   END_COLLECTION
+       0xc0                           // END_COLLECTION   
+
+ *
+ *
+ *
+ *
  */
-#define DEBUG
+// #define DEBUG
 
 // ST keyboard reset pin
 const int ST_KB_RESET = 2;
@@ -66,6 +130,12 @@ static uint8_t last_make;    // Last make char
 static unsigned long last_make_time;  // Last make time (milliseconds)
 int auto_repeat_delay = 500; // Keyboard auto-repeat delay (milliseconds)
 int auto_repeat_rate = 25;   // Keyboard auto-repeat rate (milliseconds)
+
+// Joystick stuff
+int lastkey;
+int joy1button = 0b0;
+int joy0;
+int joy1;
 
 // Key scancodes
 // Use ST scancode as index to find the corresponding USB scancode.
@@ -193,23 +263,20 @@ uint8_t scanCodes[] =
   0xE0  // NEnter
 };
 
-// Joystick directions
-const uint8_t JOY_1_N        = 0x01;
-const uint8_t JOY_1_S        = 0x02;
-const uint8_t JOY_1_E        = 0x04;
-const uint8_t JOY_1_NW       = 0x05;
-const uint8_t JOY_1_SW       = 0x06;
-const uint8_t JOY_1_W        = 0x08;
-const uint8_t JOY_1_NE       = 0x09;
-const uint8_t JOY_1_SE       = 0x0A;
-const uint8_t JOY_1_ACTION   = 0xFF;
-const uint8_t JOY_1_LMB_DOWN = 0xF9;
-const uint8_t JOY_1_LMB_UP   = 0xF8;
-
-uint8_t joystate = 0;
-
-JoyState_t joySt;
-
+uint8_t joyCodes[] =
+{
+  0b0,
+  0b1, // N
+  0b11, // S
+  0b00,
+  0b1100, // W
+  0b1101, // NW
+  0b1111, // NE
+  0b00,
+  0b100, // E
+  0b101, // NE
+  0b111 // SE
+};
 
 void setup(void)
 {
@@ -230,25 +297,14 @@ void setup(void)
   delay(200);
 
   // Empty serial buffer before starting
-  Serial1.print(0x14);
-  joySt.buttons = 0;
-  reset_joystick();
-
   while(Serial1.available() > 0) Serial1.read();
 }
 
 void loop()
 {
   // Process incoming Atari keypresses
-  Joystick.setState(&joySt);
-  /*  if ( ! joystate ) {
-   reset_joystick(); 
-   } */
+  if (Serial1.available() > 0) process_keypress(Serial1.read());
 
-  if (Serial1.available() > 0) {
-    process_keypress(Serial1.read());
-
-  }
   // Handle keyboard auto-repeat
   auto_repeat();
 }
@@ -266,94 +322,59 @@ void reset_st_keyboard(void)
   digitalWrite(ST_KB_RESET, HIGH);
 }
 
-void reset_joystick() {
-  joySt.xAxis = 128;
-  joySt.yAxis = 128;
-  joySt.zAxis = 128;
-  joySt.xRotAxis = 128;
-  joySt.yRotAxis = 128;
-  joySt.zRotAxis = 128;
-  joySt.throttle = 128;
-  joySt.rudder = 128;
-  joySt.hatSw1 = 255;
-  //	joySt.hatSw2 = 255;
-  //  joySt.buttons = 0;
-}
-
 // Process each keypress
 void process_keypress(uint8_t key)
 {
-  switch (key) {
-  case JOY_1_ACTION:
-    joystate = joystate ^ B100;
-    joystate = joystate ^ B1;
-    break;
-  case JOY_1_LMB_DOWN :
-    joystate |= (1<< 1);
-    joySt.buttons = 1;
-    break;
-  case JOY_1_LMB_UP:
-    joystate &= ~(1 << 1);
-    joySt.buttons = 0;
-    break;
 
-  }
+  switch ( lastkey ) {
+  case 0xFF: // Joy 1
+    joy1 = joyCodes[key] | joy1button ;
+    HID_SendReport(3, &joy1, 1);
+#ifdef DEBUG
+    Serial.print("Joystick 1: ");
+    Serial.println(joy1, BIN);
+#endif
 
-  if ( ((joystate >> 2) & 1) || ((joystate >> 0 & 1)) ) {
-    joystate = (joystate >> 2) & 1;
-    if ( key ) {
-      switch(key) {
-      case JOY_1_N:
-        joySt.yAxis=0;
-        break; 
-      case JOY_1_S:
-        joySt.yAxis=255;
-        break; 
-      case JOY_1_E:
-        joySt.xAxis=0;
-        break; 
-      case JOY_1_W:
-        joySt.xAxis=255;
-        break; 
-      case JOY_1_NE:
-        joySt.yAxis=0;
-        joySt.xAxis=255;
-        break; 
-      case JOY_1_SE:
-        joySt.yAxis=255;
-        joySt.xAxis=255;
-        break; 
-      case JOY_1_NW:
-        joySt.yAxis=0;
-        joySt.xAxis=0;
-        break; 
-      case JOY_1_SW:
-        joySt.yAxis=255;
-        joySt.xAxis=0;
-        break; 
-      }          
-
-    } 
-    else {
-      reset_joystick(); 
-    }
-  }  else if (((key & 0x7f) > 0) && ((key & 0x7f) < 0x73))
-  {
-    // Break codes (other than modifiers) do not need to be sent 
-    // to the PC as the Leonardo keyboard interface handles that
-    if (key & 0x80) // Break
+    break;
+  case 0xF9: // Joy1 button
+    joy1button = 0b110000;
+    joy1 = joy1 | 0b110000;
+    HID_SendReport(3, &joy1, 1);
+#ifdef DEBUG
+    Serial.print("Joystick 1: ");
+    Serial.println(joy1, BIN);
+#endif
+    break;
+  case 0xF8: // Joy1 button
+    joy1button = 0b0;
+    joy1 = joy1 ^ 0b110000;
+    HID_SendReport(3, &joy1, 1);
+#ifdef DEBUG
+    Serial.print("Joystick 1: ");
+    Serial.println(joy1, BIN);
+#endif
+    break;
+  default:
+    // Keypress
+    if (((key & 0x7f) > 0) && ((key & 0x7f) < 0x73))
     {
-      last_make = 0;
-      last_make_time = 0;
-      process_modifier(key);
-    }
-    else // Make
-    {
-      last_make = key;
-      last_make_time = millis();
-      convert_scancode(key);
+      // Break codes (other than modifiers) do not need to be sent 
+      // to the PC as the Leonardo keyboard interface handles that
+      if (key & 0x80) // Break
+      {
+        last_make = 0;
+        last_make_time = 0;
+        process_modifier(key);
+      }
+      else // Make
+      {
+        last_make = key;
+        last_make_time = millis();
+        convert_scancode(key);
+      }
     }
   }
+  lastkey = key;
 }
 
 // Convert from ST scancode to PC scancode
@@ -512,14 +533,6 @@ void auto_repeat(void)
     convert_scancode(last_make);
   }  
 }
-
-
-
-
-
-
-
-
 
 
 
