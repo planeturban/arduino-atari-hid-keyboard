@@ -1,4 +1,4 @@
-nterface Atari ST Keyboard to USB HID Keyboard
+/* Interface Atari ST Keyboard to USB HID Keyboard
  * -------------------------------------------------------------------------
  * Initial idea and some original code provided by user 'joska' of 
  * http://www.atari-forum.com - license unknown
